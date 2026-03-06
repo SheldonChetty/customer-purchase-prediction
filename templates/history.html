@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="animate-fade-in space-y-6">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">Prediction History</h1>
+            <p class="text-slate-500 mt-1">Review past marketing intelligence analyses.</p>
+        </div>
+        <a href="/" class="btn-gradient text-white px-5 py-2.5 rounded-xl font-medium shadow-md shadow-indigo-500/20">
+            <i class="fa-solid fa-plus mr-2"></i> New Prediction
+        </a>
+    </div>
+
+    <!-- History Data Table -->
+    <div class="glass-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm whitespace-nowrap">
+                <thead class="uppercase tracking-wider border-b border-slate-200 bg-slate-50 text-slate-500 text-xs font-semibold">
+                    <tr>
+                        <th class="px-6 py-4">ID / Time</th>
+                        <th class="px-6 py-4">Features</th>
+                        <th class="px-6 py-4">Prediction</th>
+                        <th class="px-6 py-4">Marketing Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for p in predictions %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 border-b border-slate-100">
+                            <span class="font-bold text-slate-700">#{{ p.id }}</span>
+                            <div class="text-xs text-slate-400 mt-1">{{ p.timestamp }}</div>
+                        </td>
+                        <td class="px-6 py-4 border-b border-slate-100">
+                            <div class="flex flex-wrap gap-2">
+                                <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-xs">Pages: {{ p.pages_viewed }}</span>
+                                <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-xs">Time: {{ p.time_spent }}m</span>
+                                <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-xs">Cart: {{ p.cart_additions }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 border-b border-slate-100">
+                            {% set prob = (p.probability * 100) | round(2) %}
+                            {% if prob >= 80 %}
+                                <span class="text-green-600 font-bold bg-green-50 px-2 py-1 rounded-md">{{ prob }}%</span>
+                            {% elif prob >= 50 %}
+                                <span class="text-yellow-600 font-bold bg-yellow-50 px-2 py-1 rounded-md">{{ prob }}%</span>
+                            {% else %}
+                                <span class="text-red-500 font-bold bg-red-50 px-2 py-1 rounded-md">{{ prob }}%</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 border-b border-slate-100 font-medium text-slate-700">
+                            {% if "Show" in p.recommendation %}
+                                <i class="fa-solid fa-bolt text-green-500 mr-2"></i> {{ p.recommendation }}
+                            {% elif "discount" in p.recommendation %}
+                                <i class="fa-solid fa-tags text-yellow-500 mr-2"></i> {{ p.recommendation }}
+                            {% else %}
+                                <i class="fa-solid fa-box text-slate-400 mr-2"></i> {{ p.recommendation }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-12 text-center text-slate-500">
+                            <i class="fa-regular fa-folder-open text-4xl text-slate-300 mb-3 block"></i>
+                            <p>No predictions logged yet.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
