@@ -1,4 +1,11 @@
 import os
+# Fix PyInstaller / multiprocessing C-extension threading conflicts on Windows
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 import sqlite3
 import joblib
 import numpy as np
@@ -11,18 +18,15 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-MODEL_PATH = "model/purchase_pipeline.pkl"
+MODEL_PATH = "model/purchase_pipeline (1).pkl"
+print("Loading ML pipeline...")
 
-# Initialize pipeline to None, will attempt to load inside try block
-pipeline = None
-try:
-    if os.path.exists(MODEL_PATH):
-        pipeline = joblib.load(MODEL_PATH)
-        print("Pipeline loaded successfully.")
-    else:
-        print(f"Warning: Pipeline not found at {MODEL_PATH}.")
-except Exception as e:
-    print(f"Error loading pipeline: {e}")
+if os.path.exists(MODEL_PATH):
+    pipeline = joblib.load(MODEL_PATH)
+    print("Pipeline loaded successfully")
+else:
+    pipeline = None
+    print("ERROR: Pipeline file not found")
 
 def get_db():
     db = getattr(g, '_database', None)
@@ -78,22 +82,28 @@ def get_recommendation(prob):
 def index():
     return render_template("index.html")
 
+from threading import Lock
+predict_lock = Lock()
+
 @app.route("/predict", methods=["POST"])
 def predict():
-    if not pipeline:
-        return jsonify({"error": "ML Pipeline is not loaded properly. Check logs."}), 500
-        
+    if pipeline is None:
+        return jsonify({"error": "ML model not loaded"}), 500
+
     try:
         data = request.json
         if not data:
             data = request.form
-        
-        pages_viewed = float(data.get("pages_viewed", 0))
-        time_spent = float(data.get("time_spent", 0))
-        cart_additions = float(data.get("cart_additions", 0))
-        previous_purchases = float(data.get("previous_purchases", 0))
-        total_sessions = float(data.get("total_sessions", 0))
-        session_duration = float(data.get("session_duration", 0))
+            
+        try:
+            pages_viewed = float(data.get("pages_viewed", 0))
+            items_viewed = float(data.get("items_viewed", 0))
+            time_spent = float(data.get("time_spent", 0))
+            cart_additions = float(data.get("cart_additions", 0))
+            previous_purchases = float(data.get("previous_purchases", 0))
+            session_duration = float(data.get("session_duration", 0))
+        except ValueError:
+            return jsonify({"error": "Invalid inputs. Must provide numbers.", "success": False}), 400
         
         # Categorical String Handling Using Dictionaries Match to Scikit Config
         encoders = {
@@ -112,13 +122,17 @@ def predict():
 
         # Raw shape matching all 9 variables properly
         features = np.array([[
-            pages_viewed, time_spent, cart_additions, previous_purchases,
-            total_sessions, session_duration, product_category, device_type, traffic_source
+            pages_viewed, items_viewed, time_spent, cart_additions, previous_purchases,
+            session_duration, product_category, device_type, traffic_source
         ]])
         
-        # Output prediction probability using the pipeline (automatically applies scaling)
+        # Output prediction probability using the pipeline
         probability_ratio = float(pipeline.predict_proba(features)[0][1])
+            
         recommendation = get_recommendation(probability_ratio)
+        
+        print("Input features:", features.tolist())
+        print("Prediction probability:", probability_ratio)
         
         # Format the output percentage for the database AND JSON output
         probability = round(probability_ratio * 100.0, 2)
@@ -173,4 +187,4 @@ def history():
     return render_template("history.html", predictions=predictions)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    app.run(host='127.0.0.1', port=5001, debug=False, threaded=False)
